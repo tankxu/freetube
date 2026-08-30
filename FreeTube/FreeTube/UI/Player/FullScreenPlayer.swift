@@ -45,6 +45,9 @@ struct FullScreenPlayer: View {
     /// presentation. We capture the whole `Video` (not just the id) so the sheet can show its
     /// title at the top of the picker.
     @State private var addToPlaylistVideo: Video?
+    /// Surfaces an explicit-download failure from the recovery actions menu. Stream failures stay
+    /// in `player.loadState`; this is only for the separate persistent download the user requested.
+    @State private var downloadErrorMessage: String?
 
     /// Hashable wrapper so `.navigationDestination(for:)` can match the channel id and push
     /// `ChannelScreen` onto `channelPath`.
@@ -171,6 +174,14 @@ struct FullScreenPlayer: View {
         // owns its own playlist fetch + "Create new playlist" form — we just hand it the video.
         .sheet(item: $addToPlaylistVideo) { video in
             AddToPlaylistSheet(videoID: video.id, videoTitle: video.title)
+        }
+        .alert("Download failed", isPresented: Binding(
+            get: { downloadErrorMessage != nil },
+            set: { if !$0 { downloadErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(downloadErrorMessage ?? "The video could not be downloaded.")
         }
         // Pull-down-to-dismiss is handled by LNPopupUI via `.popupInteractionStyle(...)` in
         // RootView. We don't install a custom DragGesture here — it would race with the system
@@ -580,6 +591,21 @@ struct FullScreenPlayer: View {
     private var moreActionsMenu: some View {
         Menu {
             if let video = player.currentVideo {
+                if case .failed = player.loadState {
+                    Button {
+                        player.load(video)
+                    } label: {
+                        Label("Retry playback", systemImage: "arrow.clockwise")
+                    }
+                    if DownloadManager.shared.localFile(for: video.id) == nil {
+                        Button {
+                            download(video)
+                        } label: {
+                            Label("Download video", systemImage: "arrow.down.circle")
+                        }
+                    }
+                    Divider()
+                }
                 Button {
                     if let url = watchURL(video) {
                         UIApplication.shared.open(url)
@@ -662,6 +688,25 @@ struct FullScreenPlayer: View {
         let seconds = Int(player.elapsed)
         return URL(string: "https://youtu.be/\(video.id)?t=\(seconds)")
             ?? URL(string: "https://youtu.be/\(video.id)")!
+    }
+
+    /// Starts the normal persistent-download pipeline from the failed-playback recovery menu.
+    /// DownloadManager publishes queue/progress state to the Downloads tab; this view only needs
+    /// to surface a terminal error if the explicit request cannot be completed.
+    private func download(_ video: Video) {
+        let quality = UserPreferences().preferredQuality
+        Task {
+            do {
+                _ = try await DownloadManager.shared.ensureDownloaded(
+                    video: video,
+                    quality: quality,
+                    priority: .userInitiated
+                )
+            } catch {
+                downloadErrorMessage = (error as? LocalizedError)?.errorDescription
+                    ?? error.localizedDescription
+            }
+        }
     }
 
     /// O(N) check against the already-loaded `favorites` array — no Core Data per call. With
