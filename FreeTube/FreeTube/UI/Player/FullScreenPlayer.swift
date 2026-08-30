@@ -591,19 +591,22 @@ struct FullScreenPlayer: View {
     private var moreActionsMenu: some View {
         Menu {
             if let video = player.currentVideo {
-                if case .failed = player.loadState {
+                let localFile = DownloadManager.shared.localFile(for: video.id)
+                if playbackFailed {
                     Button {
                         player.load(video)
                     } label: {
                         Label("Retry playback", systemImage: "arrow.clockwise")
                     }
-                    if DownloadManager.shared.localFile(for: video.id) == nil {
-                        Button {
-                            download(video)
-                        } label: {
-                            Label("Download video", systemImage: "arrow.down.circle")
-                        }
+                }
+                if localFile == nil {
+                    Button {
+                        download(video)
+                    } label: {
+                        Label("Download video", systemImage: "arrow.down.circle")
                     }
+                }
+                if playbackFailed || localFile == nil {
                     Divider()
                 }
                 Button {
@@ -618,7 +621,7 @@ struct FullScreenPlayer: View {
                 // a `Menu` it sometimes serializes the URL as text and the share sheet doesn't
                 // show the apps that handle the mp4 UTType. Going through `UIActivityViewController`
                 // directly is the reliable path for file activity items.
-                if let localFile = DownloadManager.shared.localFile(for: video.id) {
+                if let localFile {
                     Button {
                         shareFileURL = localFile
                     } label: {
@@ -657,7 +660,7 @@ struct FullScreenPlayer: View {
                         Label("Add to playlist", systemImage: "text.badge.plus")
                     }
                 }
-                if DownloadManager.shared.localFile(for: video.id) != nil {
+                if localFile != nil {
                     Divider()
                     Button(role: .destructive) {
                         DownloadManager.shared.deleteDownloaded(videoID: video.id, context: modelContext)
@@ -681,6 +684,11 @@ struct FullScreenPlayer: View {
 
     private func watchURL(_ video: Video) -> URL? {
         URL(string: "https://www.youtube.com/watch?v=\(video.id)")
+    }
+
+    private var playbackFailed: Bool {
+        if case .failed = player.loadState { return true }
+        return false
     }
 
     /// `youtu.be/<id>?t=<seconds>` is the canonical share-with-timestamp URL YouTube understands.
