@@ -15,10 +15,9 @@ struct FullScreenPlayer: View {
     /// every redraw (which was the bug DownloadsScreen had: per-row SQL on the main queue).
     @Query private var favorites: [FavoriteVideo]
 
-    /// What's shown in the lower panel. Default is `.queue` so the user can see what's coming up
-    /// without an extra tap; they can switch to `.comments` via the toggle on the right of the
-    /// transport row.
-    @State private var panel: Panel = .queue
+    /// What's shown in the lower panel. Comments are the primary video-page content; the user can
+    /// switch to the upcoming queue via the toggle on the right of the transport row.
+    @State private var panel: Panel = .comments
     /// Async-loaded description / details for the currently-playing video. Fetched on demand when
     /// the user taps "More" under the channel row.
     @State private var details: VideoInfo?
