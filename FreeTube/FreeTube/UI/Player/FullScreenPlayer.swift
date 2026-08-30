@@ -660,14 +660,6 @@ struct FullScreenPlayer: View {
                         Label("Add to playlist", systemImage: "text.badge.plus")
                     }
                 }
-                if localFile != nil {
-                    Divider()
-                    Button(role: .destructive) {
-                        DownloadManager.shared.deleteDownloaded(videoID: video.id, context: modelContext)
-                    } label: {
-                        Label("Remove downloaded file", systemImage: "trash")
-                    }
-                }
             }
         } label: {
             Image(systemName: "ellipsis.circle")
