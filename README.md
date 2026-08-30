@@ -6,6 +6,23 @@ For personal use, sideload, or TestFlight only — **not** for public App Store 
 
 ---
 
+## Changes in the `tankxu` branch
+
+This branch contains the iPhone-focused changes used by the `com.tankxu` build:
+
+- Changed the app bundle identifier and related namespaces to `com.tankxu`.
+- Fixed iOS download handling after the bundle identifier migration.
+- Made normal playback stream-first, so videos start without waiting for a complete download.
+- Kept **Download before playback** as an optional compatibility mode in Settings.
+- Automatically opens the expanded player when a video is selected.
+- Added **Retry** and **Download** recovery actions when a playable stream cannot be resolved.
+- Keeps **Download** in the player's More Actions menu at all times; the menu does not include a delete action.
+- Shows comments by default on the video page instead of opening the queue/playlist first.
+
+The upstream behavior and source remain available on `main`; all custom changes are maintained on the `tankxu` branch.
+
+---
+
 ## ⚠️ Disclaimer
 
 FreeTube is a hobby project provided **for personal and educational purposes only**.
