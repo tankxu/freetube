@@ -155,6 +155,7 @@ final class PlayerStateManager {
         // we just zero it for arbitrary files.
         queueAcceptsRecommendations = false
         miniPlayerVisible = true
+        fullScreenPresented = true
         elapsed = 0
         duration = 0
         refreshArtwork(for: synthetic)
@@ -166,8 +167,16 @@ final class PlayerStateManager {
         play()
     }
 
-    func load(_ video: Video, autoplay: Bool = true, skipRecommendations: Bool = false) {
-        log.info("load(\(video.id, privacy: .public)) autoplay=\(autoplay, privacy: .public) skipRecs=\(skipRecommendations, privacy: .public)")
+    /// - Parameter presentPlayer: Expands the popup for a user-selected video. Internal transport
+    ///   changes pass `false` so auto-advance and the mini-player's next/previous buttons preserve
+    ///   the presentation state the user chose instead of unexpectedly reopening the player.
+    func load(
+        _ video: Video,
+        autoplay: Bool = true,
+        skipRecommendations: Bool = false,
+        presentPlayer: Bool = true
+    ) {
+        log.info("load(\(video.id, privacy: .public)) autoplay=\(autoplay, privacy: .public) skipRecs=\(skipRecommendations, privacy: .public) presentPlayer=\(presentPlayer, privacy: .public)")
         queueAcceptsRecommendations = !skipRecommendations
         // Pause and tear down anything currently playing. Otherwise we'd keep streaming audio from
         // the previous video while the new one's file is downloading — which is what the user kept
@@ -185,6 +194,9 @@ final class PlayerStateManager {
         // from `playNext()` / `playPrevious()` find it already there and just update `currentIndex`.
         queue.setCurrent(video)
         miniPlayerVisible = true
+        if presentPlayer {
+            fullScreenPresented = true
+        }
         loadState = .resolving
         // Wipe transport state from the previous video so a stray time-observer tick during the
         // transition (the periodic callback can fire AFTER currentVideo flips but BEFORE the new
@@ -274,7 +286,7 @@ final class PlayerStateManager {
     func playNext() {
         log.info("playNext() — queue size=\(self.queue.items.count, privacy: .public) currentIndex=\(self.queue.currentIndex, privacy: .public)")
         if let next = queue.advance() {
-            load(next)
+            load(next, presentPlayer: false)
             return
         }
         // Queue at end. If this queue accepts recommendations and the user hasn't asked for
@@ -297,7 +309,7 @@ final class PlayerStateManager {
                 return
             }
             if let next = self.queue.advance() {
-                self.load(next)
+                self.load(next, presentPlayer: false)
             }
         }
     }
@@ -308,7 +320,7 @@ final class PlayerStateManager {
             log.notice("playPrevious: at start of queue, nothing to go back to")
             return
         }
-        load(previous)
+        load(previous, presentPlayer: false)
     }
 
     func dismiss() {
