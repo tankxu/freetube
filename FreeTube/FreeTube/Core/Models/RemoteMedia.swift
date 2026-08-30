@@ -43,6 +43,10 @@ struct RemoteFormat: Identifiable, Sendable, Hashable {
     /// segment URL depending on `protocolKind`. nil only for cipher-locked or DRM-locked
     /// formats yt-dlp couldn't resolve.
     let url: URL?
+    /// Master HLS manifest reported by yt-dlp. Unlike a format's media-playlist `url`, this
+    /// contains both the video variants and their audio renditions, so AVPlayer can stream them
+    /// together without downloading and muxing a local file first.
+    let manifestURL: URL?
     /// File extension yt-dlp would write (mp4, m4a, webm, mp3, opus).
     let ext: String
     let width: Int?

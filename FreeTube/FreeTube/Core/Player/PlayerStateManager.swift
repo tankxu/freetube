@@ -397,16 +397,20 @@ final class PlayerStateManager {
             playbackURL = streamURL
             log.info("resolveAndPlay: remote stream selected for \(video.id, privacy: .public)")
         } else {
-            log.info("resolveAndPlay: no remote stream for \(video.id, privacy: .public) — falling back to download")
-            do {
-                playbackURL = try await downloadForPlayback(video)
-            } catch {
-                log.error("resolveAndPlay: streaming and download paths failed for \(video.id, privacy: .public): \(String(describing: error), privacy: .public)")
-                loadState = .failed((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
-                return
-            }
+            // Streaming mode must never silently turn a Play tap into a full persistent download.
+            // The old fallback is exactly why the UI still showed "Downloading…" even though the
+            // setting promised immediate streaming. Keep explicit downloads behind the Download
+            // button (or the user-selected download-before-playback setting) and surface a useful
+            // error here instead.
+            log.error("resolveAndPlay: no remote stream for \(video.id, privacy: .public); refusing implicit download")
+            loadState = .failed("Couldn't resolve a playable stream. You can still use Download to save this video.")
+            return
         }
         let item = AVPlayerItem(url: playbackURL)
+        if let height = preferences.preferredQuality.heightCap {
+            let cappedHeight = CGFloat(height)
+            item.preferredMaximumResolution = CGSize(width: cappedHeight * 16 / 9, height: cappedHeight)
+        }
         loadItem(item)
         loadState = .readyToPlay
         updateNowPlaying()
@@ -486,12 +490,13 @@ final class PlayerStateManager {
         return url
     }
 
-    /// Remote URL resolver. Walks four tiers, returning the first one that produces a URL
+    /// Remote URL resolver. Walks five tiers, returning the first one that produces a URL
     /// `AVPlayer` can open directly:
     ///   1. iOS-client HLS manifest (adaptive bitrate, best playback experience)
     ///   2. iOS-client progressive MP4 (muxed audio+video, no n-decoding needed)
     ///   3. TVHTML5 HLS manifest
     ///   4. TVHTML5 progressive MP4
+    ///   5. yt-dlp metadata-only extraction, preferring its master HLS manifest
     ///
     /// Why HLS is preferred: HLS chunks use short-lived signatures attached to the manifest
     /// rather than the player.js-derived `n` cipher, and YouTube doesn't typically PoT-stamp
@@ -513,6 +518,32 @@ final class PlayerStateManager {
             if let progressive = Self.pickProgressiveURL(from: info.formats, maxHeight: quality.heightCap ?? .max) {
                 return progressive
             }
+        }
+
+        // YouTubeKit's player clients increasingly return only PoT-locked adaptive formats. The
+        // download pipeline already has a maintained yt-dlp + JavaScript challenge bridge, so use
+        // its metadata-only `extract_info(download=False)` path as the final stream resolver. A
+        // format-level HLS URL is usually video-only; `manifest_url` is the master playlist that
+        // advertises both video variants and audio renditions, which AVPlayer combines natively.
+        do {
+            let media = try await YtDlpInfoService().probe(
+                url: "https://www.youtube.com/watch?v=\(videoID)"
+            )
+            if let manifest = media.formats.compactMap(\.manifestURL).first {
+                log.info("resolveAndPlay: yt-dlp master HLS selected for \(videoID, privacy: .public)")
+                return manifest
+            }
+            if let progressive = media.formats
+                .filter({ $0.isProgressive && $0.protocolKind == .https && $0.url != nil })
+                .filter({ ($0.height ?? .max) <= (quality.heightCap ?? .max) })
+                .sorted(by: { ($0.height ?? 0) > ($1.height ?? 0) })
+                .first?.url {
+                log.info("resolveAndPlay: yt-dlp progressive stream selected for \(videoID, privacy: .public)")
+                return progressive
+            }
+            log.notice("resolveAndPlay: yt-dlp returned no AVPlayer-compatible stream for \(videoID, privacy: .public)")
+        } catch {
+            log.error("resolveAndPlay: yt-dlp stream probe failed for \(videoID, privacy: .public): \(String(describing: error), privacy: .public)")
         }
         return nil
     }

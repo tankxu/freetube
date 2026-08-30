@@ -10,7 +10,7 @@ struct DownloadProgressOverlay: View {
     var body: some View {
         switch state {
         case .resolving:
-            overlay(label: "Preparing…", progress: nil)
+            overlay(label: "Resolving stream…", progress: nil)
         case .downloading(let progress, let phase):
             overlay(label: label(for: progress, phase: phase), progress: progress)
         case .failed(let message):

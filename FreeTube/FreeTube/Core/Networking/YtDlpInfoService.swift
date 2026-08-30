@@ -130,6 +130,7 @@ final class YtDlpInfoService: Sendable {
         guard !id.isEmpty else { return nil }
 
         let urlStr = fmt.checking["url"].flatMap(String.init) ?? ""
+        let manifestURLStr = fmt.checking["manifest_url"].flatMap(String.init) ?? ""
         let ext = fmt.checking["ext"].flatMap(String.init) ?? ""
 
         // yt-dlp uses the literal string "none" for absent codecs (audio-only formats have
@@ -168,6 +169,7 @@ final class YtDlpInfoService: Sendable {
         return RemoteFormat(
             id: id,
             url: URL(string: urlStr),
+            manifestURL: URL(string: manifestURLStr),
             ext: ext,
             width: widthRaw > 0 ? widthRaw : nil,
             height: heightRaw > 0 ? heightRaw : nil,
